@@ -28,12 +28,15 @@ import org.apache.flink.cdc.common.event.TableId;
 import org.apache.flink.cdc.common.event.visitor.SchemaChangeEventVisitor;
 import org.apache.flink.cdc.common.exceptions.SchemaEvolveException;
 import org.apache.flink.cdc.common.exceptions.UnsupportedSchemaChangeEventException;
+import org.apache.flink.cdc.common.schema.Column;
 import org.apache.flink.cdc.common.schema.Schema;
 import org.apache.flink.cdc.common.sink.MetadataApplier;
+import org.apache.flink.cdc.common.types.DataType;
 import org.apache.flink.cdc.common.types.utils.DataTypeUtils;
 
 import org.apache.flink.shaded.guava31.com.google.common.collect.Sets;
 
+import org.apache.paimon.CoreOptions;
 import org.apache.paimon.catalog.Catalog;
 import org.apache.paimon.catalog.Identifier;
 import org.apache.paimon.flink.FlinkCatalogFactory;
@@ -41,6 +44,7 @@ import org.apache.paimon.flink.LogicalTypeConversion;
 import org.apache.paimon.options.Options;
 import org.apache.paimon.schema.SchemaChange;
 import org.apache.paimon.table.Table;
+import org.apache.paimon.types.DataField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +52,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.apache.flink.cdc.common.utils.Preconditions.checkArgument;
@@ -73,21 +78,29 @@ public class PaimonMetadataApplier implements MetadataApplier {
 
     private Set<SchemaChangeEventType> enabledSchemaEvolutionTypes;
 
+    public final boolean ignoreIncompatibleOnRestart;
+
     public PaimonMetadataApplier(Options catalogOptions) {
-        this.catalogOptions = catalogOptions;
-        this.tableOptions = new HashMap<>();
-        this.partitionMaps = new HashMap<>();
-        this.enabledSchemaEvolutionTypes = getSupportedSchemaEvolutionTypes();
+        this(catalogOptions, new HashMap<>(), new HashMap<>(), true);
     }
 
     public PaimonMetadataApplier(
             Options catalogOptions,
             Map<String, String> tableOptions,
             Map<TableId, List<String>> partitionMaps) {
+        this(catalogOptions, tableOptions, partitionMaps, true);
+    }
+
+    public PaimonMetadataApplier(
+            Options catalogOptions,
+            Map<String, String> tableOptions,
+            Map<TableId, List<String>> partitionMaps,
+            boolean ignoreIncompatibleOnRestart) {
         this.catalogOptions = catalogOptions;
         this.tableOptions = tableOptions;
         this.partitionMaps = partitionMaps;
         this.enabledSchemaEvolutionTypes = getSupportedSchemaEvolutionTypes();
+        this.ignoreIncompatibleOnRestart = ignoreIncompatibleOnRestart;
     }
 
     @Override
@@ -153,33 +166,146 @@ public class PaimonMetadataApplier implements MetadataApplier {
             if (!catalog.databaseExists(event.tableId().getSchemaName())) {
                 catalog.createDatabase(event.tableId().getSchemaName(), true);
             }
-            Schema schema = event.getSchema();
-            org.apache.paimon.schema.Schema.Builder builder =
-                    new org.apache.paimon.schema.Schema.Builder();
-            schema.getColumns()
-                    .forEach(
-                            (column) ->
-                                    builder.column(
-                                            column.getName(),
-                                            LogicalTypeConversion.toDataType(
-                                                    DataTypeUtils.toFlinkDataType(column.getType())
-                                                            .getLogicalType())));
-            builder.primaryKey(schema.primaryKeys().toArray(new String[0]));
-            if (partitionMaps.containsKey(event.tableId())) {
-                builder.partitionKeys(partitionMaps.get(event.tableId()));
-            } else if (schema.partitionKeys() != null && !schema.partitionKeys().isEmpty()) {
-                builder.partitionKeys(schema.partitionKeys());
+            Identifier identifier =
+                    new Identifier(event.tableId().getSchemaName(), event.tableId().getTableName());
+
+            if (catalog.tableExists(identifier)) {
+                applyAlterTableOptions(identifier);
+                if (!ignoreIncompatibleOnRestart) {
+                    checkColumnsCompatibility(event, identifier);
+                }
+            } else {
+                Schema schema = event.getSchema();
+                org.apache.paimon.schema.Schema.Builder builder =
+                        new org.apache.paimon.schema.Schema.Builder();
+                schema.getColumns()
+                        .forEach(
+                                (column) ->
+                                        builder.column(
+                                                column.getName(),
+                                                LogicalTypeConversion.toDataType(
+                                                        DataTypeUtils.toFlinkDataType(
+                                                                        column.getType())
+                                                                .getLogicalType())));
+                builder.primaryKey(schema.primaryKeys().toArray(new String[0]));
+                if (partitionMaps.containsKey(event.tableId())) {
+                    builder.partitionKeys(partitionMaps.get(event.tableId()));
+                } else if (schema.partitionKeys() != null && !schema.partitionKeys().isEmpty()) {
+                    builder.partitionKeys(schema.partitionKeys());
+                }
+                builder.options(tableOptions);
+                builder.options(schema.options());
+                catalog.createTable(
+                        new Identifier(
+                                event.tableId().getSchemaName(), event.tableId().getTableName()),
+                        builder.build(),
+                        true);
             }
-            builder.options(tableOptions);
-            builder.options(schema.options());
-            catalog.createTable(
-                    new Identifier(event.tableId().getSchemaName(), event.tableId().getTableName()),
-                    builder.build(),
-                    true);
         } catch (Catalog.TableAlreadyExistException
                 | Catalog.DatabaseNotExistException
-                | Catalog.DatabaseAlreadyExistException e) {
+                | Catalog.DatabaseAlreadyExistException
+                | Catalog.TableNotExistException e) {
             throw new SchemaEvolveException(event, e.getMessage(), e);
+        }
+    }
+
+    private void checkColumnsCompatibility(CreateTableEvent event, Identifier identifier)
+            throws Catalog.TableNotExistException {
+        Table paimonTable = catalog.getTable(identifier);
+        List<String> partitionKeys = paimonTable.partitionKeys();
+        List<String> primaryKeys = paimonTable.primaryKeys();
+
+        Map<String, DataField> oldColumns = new HashMap<>();
+        for (DataField oldField : paimonTable.rowType().getFields()) {
+            oldColumns.put(oldField.name(), oldField);
+        }
+        List<Column> newColumns = event.getSchema().getColumns();
+        String referenceColumnName = null;
+
+        List<AddColumnEvent.ColumnWithPosition> addColumns = new ArrayList<>();
+        Map<String, DataType> columnTypeMap = new HashMap<>();
+        for (int i = 0; i < newColumns.size(); i++) {
+            Column newColumn = newColumns.get(i);
+            String columnName = newColumn.getName();
+
+            if (primaryKeys.contains(columnName) || partitionKeys.contains(columnName)) {
+                referenceColumnName = columnName;
+                continue;
+            }
+
+            if (oldColumns.containsKey(columnName)) {
+                // alter column type
+                if (!oldColumns
+                        .get(columnName)
+                        .type()
+                        .equals(
+                                LogicalTypeConversion.toDataType(
+                                        DataTypeUtils.toFlinkDataType(newColumn.getType())
+                                                .getLogicalType()))) {
+                    columnTypeMap.put(columnName, newColumn.getType());
+                }
+            } else {
+                // add column
+                if (i == 0) {
+                    addColumns.add(
+                            AddColumnEvent.first(
+                                    Column.physicalColumn(
+                                            columnName,
+                                            newColumn.getType(),
+                                            newColumn.getComment())));
+                } else {
+                    addColumns.add(
+                            AddColumnEvent.after(
+                                    Column.physicalColumn(
+                                            columnName,
+                                            newColumn.getType(),
+                                            newColumn.getComment()),
+                                    referenceColumnName));
+                }
+            }
+            referenceColumnName = columnName;
+        }
+        if (!columnTypeMap.isEmpty()) {
+            applyAlterColumnType(new AlterColumnTypeEvent(event.tableId(), columnTypeMap));
+        }
+        if (!addColumns.isEmpty()) {
+            applyAddColumn(new AddColumnEvent(event.tableId(), addColumns));
+        }
+    }
+
+    private void applyAlterTableOptions(Identifier identifier) {
+        try {
+            Table paimonTable = catalog.getTable(identifier);
+            Map<String, String> oldOptions = paimonTable.options();
+            Set<String> immutableOptionKeys = CoreOptions.getImmutableOptionKeys();
+            List<SchemaChange> tableOptionChanges = new ArrayList<>();
+
+            // Remove options that are no longer present
+            oldOptions.keySet().stream()
+                    .filter(key -> !tableOptions.containsKey(key))
+                    .forEach(key -> tableOptionChanges.add(SchemaChange.removeOption(key)));
+
+            // Add or update options
+            tableOptions.entrySet().stream()
+                    .filter(entry -> !immutableOptionKeys.contains(entry.getKey()))
+                    .filter(entry -> !entry.getKey().equals(CoreOptions.BUCKET.key()))
+                    .filter(
+                            entry ->
+                                    !Objects.equals(
+                                            oldOptions.get(entry.getKey()), entry.getValue()))
+                    .forEach(
+                            entry ->
+                                    tableOptionChanges.add(
+                                            SchemaChange.setOption(
+                                                    entry.getKey(), entry.getValue())));
+
+            if (!tableOptionChanges.isEmpty()) {
+                catalog.alterTable(identifier, tableOptionChanges, true);
+            }
+        } catch (Catalog.TableNotExistException
+                | Catalog.ColumnAlreadyExistException
+                | Catalog.ColumnNotExistException e) {
+            throw new RuntimeException("This is unexpected.", e);
         }
     }
 

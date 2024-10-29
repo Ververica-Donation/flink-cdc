@@ -417,4 +417,104 @@ public class PaimonMetadataApplierTest {
         Assertions.assertEquals(
                 tableSchema, catalog.getTable(Identifier.fromString("test.table1")).rowType());
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"filesystem", "hive"})
+    public void testOfflineAlterExistsTableSchema(String metastore)
+            throws Catalog.TableNotExistException, Catalog.DatabaseNotEmptyException,
+                    Catalog.DatabaseNotExistException {
+        initialize(metastore);
+        Map<String, String> tableOptions = new HashMap<>();
+        tableOptions.put("bucket", "-1");
+        tableOptions.put("num-sorted-run.stop-trigger", "2147483647");
+        tableOptions.put("compaction.min.file-num", "10");
+
+        MetadataApplier metadataApplier =
+                new PaimonMetadataApplier(
+                        catalogOptions, tableOptions, Collections.emptyMap(), true);
+        CreateTableEvent createTableEvent =
+                new CreateTableEvent(
+                        TableId.parse("test.table1"),
+                        org.apache.flink.cdc.common.schema.Schema.newBuilder()
+                                .physicalColumn(
+                                        "col1",
+                                        org.apache.flink.cdc.common.types.DataTypes.STRING()
+                                                .notNull())
+                                .physicalColumn(
+                                        "col2",
+                                        org.apache.flink.cdc.common.types.DataTypes.STRING())
+                                .physicalColumn(
+                                        "col3", org.apache.flink.cdc.common.types.DataTypes.INT())
+                                .primaryKey("col1")
+                                .build());
+        metadataApplier.applySchemaChange(createTableEvent);
+        Table table = catalog.getTable(Identifier.fromString("test.table1"));
+        RowType tableSchema =
+                new RowType(
+                        Arrays.asList(
+                                new DataField(0, "col1", DataTypes.STRING().notNull()),
+                                new DataField(1, "col2", DataTypes.STRING()),
+                                new DataField(2, "col3", DataTypes.INT())));
+        Assertions.assertEquals(tableSchema, table.rowType());
+        Assertions.assertEquals(Collections.singletonList("col1"), table.primaryKeys());
+        Assertions.assertEquals("-1", table.options().get("bucket"));
+        Assertions.assertEquals("2147483647", table.options().get("num-sorted-run.stop-trigger"));
+        Assertions.assertEquals("10", table.options().get("compaction.min.file-num"));
+
+        CreateTableEvent createTableEventNew =
+                new CreateTableEvent(
+                        TableId.parse("test.table1"),
+                        org.apache.flink.cdc.common.schema.Schema.newBuilder()
+                                .physicalColumn(
+                                        "col4_first",
+                                        org.apache.flink.cdc.common.types.DataTypes.STRING())
+                                .physicalColumn(
+                                        "col1",
+                                        org.apache.flink.cdc.common.types.DataTypes.STRING()
+                                                .notNull())
+                                .physicalColumn(
+                                        "col5_before",
+                                        org.apache.flink.cdc.common.types.DataTypes.STRING())
+                                .physicalColumn(
+                                        "col2",
+                                        org.apache.flink.cdc.common.types.DataTypes.STRING())
+                                .physicalColumn(
+                                        "col6_after",
+                                        org.apache.flink.cdc.common.types.DataTypes.STRING())
+                                .physicalColumn(
+                                        "col3",
+                                        org.apache.flink.cdc.common.types.DataTypes.BIGINT())
+                                .physicalColumn(
+                                        "col7_last",
+                                        org.apache.flink.cdc.common.types.DataTypes.STRING())
+                                .primaryKey("col1")
+                                .build());
+
+        // alter table options and alter/add columns
+        tableOptions.put("snapshot.num-retained.max", "99");
+        tableOptions.remove("num-sorted-run.stop-trigger");
+        metadataApplier =
+                new PaimonMetadataApplier(
+                        catalogOptions, tableOptions, Collections.emptyMap(), false);
+        metadataApplier.applySchemaChange(createTableEventNew);
+        Table tableNew = catalog.getTable(Identifier.fromString("test.table1"));
+
+        RowType tableSchemaNew =
+                new RowType(
+                        Arrays.asList(
+                                new DataField(3, "col4_first", DataTypes.STRING()),
+                                new DataField(0, "col1", DataTypes.STRING().notNull()),
+                                new DataField(4, "col5_before", DataTypes.STRING()),
+                                new DataField(1, "col2", DataTypes.STRING()),
+                                new DataField(5, "col6_after", DataTypes.STRING()),
+                                new DataField(2, "col3", DataTypes.BIGINT()),
+                                new DataField(6, "col7_last", DataTypes.STRING())));
+
+        Assertions.assertEquals(tableSchemaNew, tableNew.rowType());
+        Assertions.assertEquals(Collections.singletonList("col1"), tableNew.primaryKeys());
+        Assertions.assertEquals("-1", tableNew.options().get("bucket"));
+        Assertions.assertEquals("99", tableNew.options().get("snapshot.num-retained.max"));
+        Assertions.assertEquals("10", table.options().get("compaction.min.file-num"));
+        Assertions.assertNull(tableNew.options().get("num-sorted-run.stop-trigger"));
+    }
 }
