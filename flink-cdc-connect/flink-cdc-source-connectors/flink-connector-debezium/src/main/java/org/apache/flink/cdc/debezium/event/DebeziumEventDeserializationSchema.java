@@ -101,7 +101,6 @@ public abstract class DebeziumEventDeserializationSchema extends SourceRecordEve
         this.schemaDataTypeInference = schemaDataTypeInference;
         this.changelogMode = changelogMode;
         this.includeSchemaInfo = includeSchemaInfo;
-
     }
 
     @Override
