@@ -495,8 +495,9 @@ class FlinkPipelineComposerITCase {
                         "DataChangeEvent{tableId=default_namespace.default_schema.table1, before=[2, , 22], after=[2, x, 22], op=UPDATE, meta=({op_ts=5})}");
     }
 
-    @Test
-    void testOneToOneRouting() throws Exception {
+    @ParameterizedTest
+    @EnumSource
+    void testOneToOneRouting(ValuesDataSink.SinkApi sinkApi) throws Exception {
         FlinkPipelineComposer composer = FlinkPipelineComposer.ofMiniCluster();
 
         // Setup value source
@@ -510,6 +511,7 @@ class FlinkPipelineComposerITCase {
         // Setup value sink
         Configuration sinkConfig = new Configuration();
         sinkConfig.set(ValuesDataSinkOptions.MATERIALIZED_IN_MEMORY, true);
+        sinkConfig.set(ValuesDataSinkOptions.SINK_API, sinkApi);
         SinkDef sinkDef = new SinkDef(ValuesDataFactory.IDENTIFIER, "Value Sink", sinkConfig);
 
         // Setup route
@@ -552,7 +554,7 @@ class FlinkPipelineComposerITCase {
                         "default_namespace.default_schema.routed2:col1=3;col2=3");
 
         // Check the order and content of all received events
-        String[] outputEvents = outCaptor.toString().trim().split("\n");
+        String[] outputEvents = outCaptor.toString().replace("\r\n", "\n").trim().split("\n");
         assertThat(outputEvents)
                 .containsExactly(
                         "CreateTableEvent{tableId=default_namespace.default_schema.routed1, schema=columns={`col1` STRING,`col2` STRING}, primaryKeys=col1, options=()}",
@@ -570,8 +572,9 @@ class FlinkPipelineComposerITCase {
                         "DataChangeEvent{tableId=default_namespace.default_schema.routed1, before=[2, 2], after=[2, x], op=UPDATE, meta=()}");
     }
 
-    @Test
-    void testIdenticalOneToOneRouting() throws Exception {
+    @ParameterizedTest
+    @EnumSource
+    void testIdenticalOneToOneRouting(ValuesDataSink.SinkApi sinkApi) throws Exception {
         FlinkPipelineComposer composer = FlinkPipelineComposer.ofMiniCluster();
 
         // Setup value source
@@ -585,6 +588,7 @@ class FlinkPipelineComposerITCase {
         // Setup value sink
         Configuration sinkConfig = new Configuration();
         sinkConfig.set(ValuesDataSinkOptions.MATERIALIZED_IN_MEMORY, true);
+        sinkConfig.set(ValuesDataSinkOptions.SINK_API, sinkApi);
         SinkDef sinkDef = new SinkDef(ValuesDataFactory.IDENTIFIER, "Value Sink", sinkConfig);
 
         // Setup route
@@ -627,7 +631,7 @@ class FlinkPipelineComposerITCase {
                         "default_namespace.default_schema.table2:col1=3;col2=3");
 
         // Check the order and content of all received events
-        String[] outputEvents = outCaptor.toString().trim().split("\n");
+        String[] outputEvents = outCaptor.toString().replace("\r\n", "\n").trim().split("\n");
         assertThat(outputEvents)
                 .containsExactly(
                         "CreateTableEvent{tableId=default_namespace.default_schema.table1, schema=columns={`col1` STRING,`col2` STRING}, primaryKeys=col1, options=()}",
@@ -645,8 +649,9 @@ class FlinkPipelineComposerITCase {
                         "DataChangeEvent{tableId=default_namespace.default_schema.table1, before=[2, 2], after=[2, x], op=UPDATE, meta=()}");
     }
 
-    @Test
-    void testMergingWithRoute() throws Exception {
+    @ParameterizedTest
+    @EnumSource
+    void testMergingWithRoute(ValuesDataSink.SinkApi sinkApi) throws Exception {
         FlinkPipelineComposer composer = FlinkPipelineComposer.ofMiniCluster();
 
         // Setup value source
@@ -678,7 +683,7 @@ class FlinkPipelineComposerITCase {
         // Table 1: +I[1, Alice, 18]
         // Table 1: +I[2, Bob, 20]
         // Table 1: -U[2, Bob, 20] +U[2, Bob, 30]
-        // Create table 2 [id, name, age]
+        // Create table 2 [id, name, age, description]
         // Table 2: +I[3, Charlie, 15, student]
         // Table 2: +I[4, Donald, 25, student]
         // Table 2: -D[4, Donald, 25, student]
@@ -782,6 +787,7 @@ class FlinkPipelineComposerITCase {
         // Setup value sink
         Configuration sinkConfig = new Configuration();
         sinkConfig.set(ValuesDataSinkOptions.MATERIALIZED_IN_MEMORY, true);
+        sinkConfig.set(ValuesDataSinkOptions.SINK_API, sinkApi);
         SinkDef sinkDef = new SinkDef(ValuesDataFactory.IDENTIFIER, "Value Sink", sinkConfig);
 
         // Setup route
@@ -823,7 +829,7 @@ class FlinkPipelineComposerITCase {
                                 .physicalColumn("gender", DataTypes.STRING())
                                 .primaryKey("id")
                                 .build());
-        String[] outputEvents = outCaptor.toString().trim().split("\n");
+        String[] outputEvents = outCaptor.toString().replace("\r\n", "\n").trim().split("\n");
         assertThat(outputEvents)
                 .containsExactly(
                         "CreateTableEvent{tableId=default_namespace.default_schema.merged, schema=columns={`id` INT,`name` STRING,`age` INT}, primaryKeys=id, options=()}",
