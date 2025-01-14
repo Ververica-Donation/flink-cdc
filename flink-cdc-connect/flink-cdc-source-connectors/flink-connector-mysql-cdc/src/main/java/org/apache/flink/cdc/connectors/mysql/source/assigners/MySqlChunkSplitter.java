@@ -317,7 +317,7 @@ public class MySqlChunkSplitter implements ChunkSplitter {
             }
         }
         // add the ending split
-        splits.add(ChunkRange.of(chunkStart, null));
+        splits.add(0, ChunkRange.of(chunkStart, null));
         return splits;
     }
 
