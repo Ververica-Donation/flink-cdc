@@ -72,7 +72,7 @@ public class MySqlChunkSplitterTest {
                         .serverTimeZone(ZoneId.of("UTC").toString())
                         .assignEndingChunkFirst(false)
                         .createConfig(0);
-        MySqlChunkSplitter splitter = new MySqlChunkSplitter(null, null);
+        MySqlChunkSplitter splitter = new MySqlChunkSplitter(null, sourceConfig);
         List<ChunkRange> res =
                 splitter.splitEvenlySizedChunks(
                         new TableId("catalog", "db", "tab"),
