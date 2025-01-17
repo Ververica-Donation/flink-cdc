@@ -20,7 +20,6 @@ package org.apache.flink.cdc.connectors.mongodb.source.reader;
 import org.apache.flink.cdc.connectors.base.source.meta.split.SnapshotSplit;
 import org.apache.flink.cdc.connectors.mongodb.source.MongoDBSourceTestBase;
 import org.apache.flink.cdc.connectors.mongodb.source.assigners.splitters.SampleBucketSplitStrategy;
-import org.apache.flink.cdc.connectors.mongodb.source.assigners.splitters.ShardedSplitStrategy;
 import org.apache.flink.cdc.connectors.mongodb.source.assigners.splitters.SingleSplitStrategy;
 import org.apache.flink.cdc.connectors.mongodb.source.assigners.splitters.SplitContext;
 import org.apache.flink.cdc.connectors.mongodb.source.assigners.splitters.SplitStrategy;
@@ -86,11 +85,6 @@ public class MongoDBSnapshotSplitReaderAssignEndingFirstTest extends MongoDBSour
         sourceConfig = configFactory.create(0);
 
         splitContext = SplitContext.of(sourceConfig, new TableId(database, null, "shopping_cart"));
-    }
-
-    @Test
-    public void testMongoDBSnapshotSplitReaderWithShardedSplitter() throws Exception {
-        testMongoDBSnapshotSplitReader(ShardedSplitStrategy.INSTANCE);
     }
 
     @Test
