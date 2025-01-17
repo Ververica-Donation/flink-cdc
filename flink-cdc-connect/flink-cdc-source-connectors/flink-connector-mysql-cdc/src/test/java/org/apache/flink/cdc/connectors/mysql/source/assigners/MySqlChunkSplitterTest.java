@@ -34,7 +34,18 @@ public class MySqlChunkSplitterTest {
 
     @Test
     public void testSplitEvenlySizedChunksOverflow() {
-        MySqlChunkSplitter splitter = new MySqlChunkSplitter(null, null);
+        MySqlSourceConfig sourceConfig =
+                new MySqlSourceConfigFactory()
+                        .startupOptions(StartupOptions.initial())
+                        .databaseList("")
+                        .tableList("")
+                        .hostname("")
+                        .username("")
+                        .password("")
+                        .serverTimeZone(ZoneId.of("UTC").toString())
+                        .assignEndingChunkFirst(false)
+                        .createConfig(0);
+        MySqlChunkSplitter splitter = new MySqlChunkSplitter(null, sourceConfig);
         List<ChunkRange> res =
                 splitter.splitEvenlySizedChunks(
                         new TableId("catalog", "db", "tab"),
@@ -50,6 +61,17 @@ public class MySqlChunkSplitterTest {
 
     @Test
     public void testSplitEvenlySizedChunksNormal() {
+        MySqlSourceConfig sourceConfig =
+                new MySqlSourceConfigFactory()
+                        .startupOptions(StartupOptions.initial())
+                        .databaseList("")
+                        .tableList("")
+                        .hostname("")
+                        .username("")
+                        .password("")
+                        .serverTimeZone(ZoneId.of("UTC").toString())
+                        .assignEndingChunkFirst(false)
+                        .createConfig(0);
         MySqlChunkSplitter splitter = new MySqlChunkSplitter(null, null);
         List<ChunkRange> res =
                 splitter.splitEvenlySizedChunks(
