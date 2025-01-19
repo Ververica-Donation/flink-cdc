@@ -1119,7 +1119,7 @@ class SchemaMergingUtilsTest {
 
     @Test
     void testTransformColumn() {
-        Assertions.assertThatCode(
+        Assertions.assertThatThrownBy(
                         () ->
                                 validateTransformColumn(
                                         of("id", BIGINT, "name", VARCHAR(17)), of("id", BIGINT)))
@@ -1128,7 +1128,7 @@ class SchemaMergingUtilsTest {
                         "Unable to merge schema columns={`id` BIGINT,`name` VARCHAR(17)}, primaryKeys=, options=() "
                                 + "and columns={`id` BIGINT}, primaryKeys=, options=() with different column counts.");
 
-        Assertions.assertThatCode(
+        Assertions.assertThatThrownBy(
                         () ->
                                 validateTransformColumn(
                                         of("id", BIGINT, "name", VARCHAR(17)),

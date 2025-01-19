@@ -459,13 +459,13 @@ public class SchemaUtils {
         if (schemas.size() > 1) {
             Schema outputSchema = null;
             for (Schema schema : schemas) {
-                isMetaSchemaCompatible(outputSchema, schema);
+                validateMetaSchemaCompatible(outputSchema, schema);
                 outputSchema = schema;
             }
         }
     }
 
-    public static void isMetaSchemaCompatible(
+    public static void validateMetaSchemaCompatible(
             @Nullable Schema currentSchema, Schema upcomingSchema) {
         if (currentSchema == null) {
             return;
