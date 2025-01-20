@@ -313,7 +313,7 @@ pipeline:
       <td>是否将TINYINT(1)类型当做Boolean类型处理，默认true。</td>
     </tr>
     <tr>
-      <td>scan.incremental.snapshot.assign.ending.first</td>
+      <td>scan.incremental.snapshot.assign-ending-first.enabled</td>
       <td>optional</td>
       <td style="word-wrap: break-word;">false</td>
       <td>Boolean</td>

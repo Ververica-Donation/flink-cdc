@@ -416,7 +416,7 @@ During a snapshot operation, the connector will query each included table to pro
       </td>
     </tr>
     <tr>
-      <td>scan.incremental.snapshot.assign.ending.first</td>
+      <td>scan.incremental.snapshot.assign-ending-first.enabled</td>
       <td>optional</td>
       <td style="word-wrap: break-word;">false</td>
       <td>Boolean</td>

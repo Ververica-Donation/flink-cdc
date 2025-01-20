@@ -333,7 +333,7 @@ pipeline:
       </td>
     </tr>
     <tr>
-      <td>scan.incremental.snapshot.assign.ending.first</td>
+      <td>scan.incremental.snapshot.assign-ending-first.enabled</td>
       <td>optional</td>
       <td style="word-wrap: break-word;">false</td>
       <td>Boolean</td>

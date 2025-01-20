@@ -316,7 +316,7 @@ public class MySqlDataSourceOptions {
 
     @Experimental
     public static final ConfigOption<Boolean> SCAN_INCREMENTAL_SNAPSHOT_ASSIGN_ENDING_FIRST =
-            ConfigOptions.key("scan.incremental.snapshot.assign.ending.first")
+            ConfigOptions.key("scan.incremental.snapshot.assign-ending-first.enabled")
                     .booleanType()
                     .defaultValue(false)
                     .withDescription(
