@@ -71,16 +71,13 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-
-import static org.apache.flink.cdc.common.utils.Preconditions.checkState;
 
 /**
  * Utils for merging {@link Schema}s and {@link DataType}s. Prefer using this over {@link
@@ -173,13 +170,17 @@ public class SchemaMergingUtils {
     }
 
     /** Merge compatible schemas. */
-    public static Schema getCommonSchema(LinkedHashSet<Schema> schemas) {
+    public static Schema getCommonSchema(Collection<Schema> schemas) {
         if (schemas.size() == 1) {
             return schemas.iterator().next();
         } else {
             Schema outputSchema = null;
             for (Schema schema : schemas) {
-                validateTransformColumn(outputSchema, schema);
+                try {
+                    validateTransformColumn(outputSchema, schema);
+                } catch (SchemaUtils.SchemaValidationException e) {
+                    throw new IllegalStateException("Schema validation failed.", e);
+                }
                 outputSchema = getLeastCommonSchema(outputSchema, schema);
             }
             return outputSchema;
@@ -187,35 +188,34 @@ public class SchemaMergingUtils {
     }
 
     public static void validateTransformColumn(
-            @Nullable Schema currentSchema, Schema upcomingSchema) {
+            @Nullable Schema currentSchema, Schema upcomingSchema)
+            throws SchemaUtils.SchemaValidationException {
         if (currentSchema != null) {
-            checkState(
-                    currentSchema.getColumnCount() == upcomingSchema.getColumnCount(),
-                    String.format(
-                            "Unable to merge schema %s and %s with different column counts.",
-                            currentSchema, upcomingSchema));
+            if (currentSchema.getColumnCount() != upcomingSchema.getColumnCount()) {
+                throw new SchemaUtils.SchemaValidationException(
+                        String.format(
+                                "Unable to merge schema %s and %s with different column counts.",
+                                currentSchema, upcomingSchema));
+            }
 
             List<Column> currentColumns = currentSchema.getColumns();
             List<Column> upcomingColumns = upcomingSchema.getColumns();
-            IntStream.range(0, currentColumns.size())
-                    .forEach(
-                            i -> {
-                                Column currentColumn = currentColumns.get(i);
-                                Column upcomingColumn = upcomingColumns.get(i);
-                                checkState(
-                                        Objects.equals(
-                                                currentColumn.getName(), upcomingColumn.getName()),
-                                        String.format(
-                                                "Unable to merge column %s and %s with different name.",
-                                                currentColumn, upcomingColumn));
-                                checkState(
-                                        Objects.equals(
-                                                currentColumn.getComment(),
-                                                upcomingColumn.getComment()),
-                                        String.format(
-                                                "Unable to merge column %s and %s with different comments.",
-                                                currentColumn, upcomingColumn));
-                            });
+            for (int i = 0; i < currentColumns.size(); i++) {
+                Column currentColumn = currentColumns.get(i);
+                Column upcomingColumn = upcomingColumns.get(i);
+                if (!Objects.equals(currentColumn.getName(), upcomingColumn.getName())) {
+                    throw new SchemaUtils.SchemaValidationException(
+                            String.format(
+                                    "Unable to merge column %s and %s with different name.",
+                                    currentColumn, upcomingColumn));
+                }
+                if (!Objects.equals(currentColumn.getComment(), upcomingColumn.getComment())) {
+                    throw new SchemaUtils.SchemaValidationException(
+                            String.format(
+                                    "Unable to merge column %s and %s with different comments.",
+                                    currentColumn, upcomingColumn));
+                }
+            }
         }
     }
 

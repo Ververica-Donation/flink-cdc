@@ -519,7 +519,8 @@ public class SchemaUtilsTest {
                                                         .physicalColumn("col2", DataTypes.STRING())
                                                         .primaryKey("col2")
                                                         .build())))
-                .isExactlyInstanceOf(IllegalStateException.class)
+                .rootCause()
+                .isExactlyInstanceOf(SchemaUtils.SchemaValidationException.class)
                 .as("test primary key conflict")
                 .hasMessage(
                         "Unable to merge schema columns={`col1` STRING,`col2` STRING}, primaryKeys=col1, options=() "
@@ -539,7 +540,8 @@ public class SchemaUtilsTest {
                                                         .physicalColumn("col2", DataTypes.STRING())
                                                         .partitionKey("col2")
                                                         .build())))
-                .isExactlyInstanceOf(IllegalStateException.class)
+                .rootCause()
+                .isExactlyInstanceOf(SchemaUtils.SchemaValidationException.class)
                 .as("test partition key conflict")
                 .hasMessage(
                         "Unable to merge schema columns={`col1` STRING,`col2` STRING}, primaryKeys=, partitionKeys=col1, options=() "

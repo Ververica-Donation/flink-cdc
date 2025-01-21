@@ -41,7 +41,7 @@ import javax.annotation.CheckReturnValue;
 import javax.annotation.Nullable;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -49,8 +49,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import static org.apache.flink.cdc.common.utils.Preconditions.checkState;
 
 /** Utils for {@link Schema} to perform the ability of evolution. */
 @PublicEvolving
@@ -455,41 +453,53 @@ public class SchemaUtils {
         return lSchema.copy(mergedColumns);
     }
 
-    public static void validateMetaSchemaCompatibility(LinkedHashSet<Schema> schemas) {
+    public static void validateMetaSchemaCompatibility(Collection<Schema> schemas) {
         if (schemas.size() > 1) {
             Schema outputSchema = null;
             for (Schema schema : schemas) {
-                validateMetaSchemaCompatible(outputSchema, schema);
+                try {
+                    validateMetaSchemaCompatible(outputSchema, schema);
+                } catch (SchemaValidationException e) {
+                    throw new IllegalStateException("Schema validation failed.", e);
+                }
                 outputSchema = schema;
             }
         }
     }
 
     public static void validateMetaSchemaCompatible(
-            @Nullable Schema currentSchema, Schema upcomingSchema) {
+            @Nullable Schema currentSchema, Schema upcomingSchema)
+            throws SchemaValidationException {
         if (currentSchema == null) {
             return;
         }
-        checkState(
-                currentSchema.primaryKeys().equals(upcomingSchema.primaryKeys()),
-                String.format(
-                        "Unable to merge schema %s and %s with different primary keys.",
-                        currentSchema, upcomingSchema));
-        checkState(
-                currentSchema.partitionKeys().equals(upcomingSchema.partitionKeys()),
-                String.format(
-                        "Unable to merge schema %s and %s with different partition keys.",
-                        currentSchema, upcomingSchema));
-        checkState(
-                currentSchema.options().equals(upcomingSchema.options()),
-                String.format(
-                        "Unable to merge schema %s and %s with different options.",
-                        currentSchema, upcomingSchema));
-        checkState(
-                Objects.equals(currentSchema.comment(), upcomingSchema.comment()),
-                String.format(
-                        "Unable to merge schema %s and %s with different comments.",
-                        currentSchema, upcomingSchema));
+
+        if (!currentSchema.primaryKeys().equals(upcomingSchema.primaryKeys())) {
+            throw new SchemaValidationException(
+                    String.format(
+                            "Unable to merge schema %s and %s with different primary keys.",
+                            currentSchema, upcomingSchema));
+        }
+
+        if (!currentSchema.partitionKeys().equals(upcomingSchema.partitionKeys())) {
+            throw new SchemaValidationException(
+                    String.format(
+                            "Unable to merge schema %s and %s with different partition keys.",
+                            currentSchema, upcomingSchema));
+        }
+        if (!currentSchema.options().equals(upcomingSchema.options())) {
+            throw new SchemaValidationException(
+                    String.format(
+                            "Unable to merge schema %s and %s with different options.",
+                            currentSchema, upcomingSchema));
+        }
+
+        if (!Objects.equals(currentSchema.comment(), upcomingSchema.comment())) {
+            throw new SchemaValidationException(
+                    String.format(
+                            "Unable to merge schema %s and %s with different comments.",
+                            currentSchema, upcomingSchema));
+        }
     }
 
     /**
@@ -628,5 +638,12 @@ public class SchemaUtils {
 
         throw new IllegalArgumentException(
                 "Failed to get precision of non-exact decimal type " + dataType);
+    }
+
+    /** Thrown to indicate that schema validation has failed due to incompatible schema. */
+    public static class SchemaValidationException extends Exception {
+        public SchemaValidationException(String message) {
+            super(message);
+        }
     }
 }

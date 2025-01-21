@@ -35,6 +35,7 @@ import org.apache.flink.cdc.common.schema.Column;
 import org.apache.flink.cdc.common.schema.Schema;
 import org.apache.flink.cdc.common.types.DataType;
 import org.apache.flink.cdc.common.types.DataTypes;
+import org.apache.flink.cdc.common.utils.SchemaUtils;
 import org.apache.flink.cdc.composer.PipelineExecution;
 import org.apache.flink.cdc.composer.definition.PipelineDef;
 import org.apache.flink.cdc.composer.definition.SinkDef;
@@ -400,7 +401,7 @@ class FlinkPipelineTransformITCase {
                                                         null)),
                                         Collections.emptyList()))
                 .rootCause()
-                .isExactlyInstanceOf(IllegalStateException.class)
+                .isExactlyInstanceOf(SchemaUtils.SchemaValidationException.class)
                 .hasMessage(
                         "Unable to merge schema columns={`id` BIGINT NOT NULL,`name` VARCHAR(255),`age` TINYINT,`description` STRING}, primaryKeys=id, options=() "
                                 + "and columns={`id` BIGINT NOT NULL,`name` STRING}, primaryKeys=id, options=() with different column counts.");
@@ -408,7 +409,7 @@ class FlinkPipelineTransformITCase {
 
     @ParameterizedTest
     @EnumSource
-    void testMultiTransformColumNameCompatibility(ValuesDataSink.SinkApi sinkApi) {
+    void testMultiTransformColumnNameCompatibility(ValuesDataSink.SinkApi sinkApi) {
         assertThatThrownBy(
                         () ->
                                 runGenericTransformTest(
@@ -435,7 +436,7 @@ class FlinkPipelineTransformITCase {
                                                         null)),
                                         Collections.emptyList()))
                 .rootCause()
-                .isExactlyInstanceOf(IllegalStateException.class)
+                .isExactlyInstanceOf(SchemaUtils.SchemaValidationException.class)
                 .hasMessage(
                         "Unable to merge column `age` TINYINT and `name` STRING with different name.");
     }
@@ -468,7 +469,7 @@ class FlinkPipelineTransformITCase {
                                                         null)),
                                         Collections.emptyList()))
                 .rootCause()
-                .isExactlyInstanceOf(IllegalStateException.class)
+                .isExactlyInstanceOf(SchemaUtils.SchemaValidationException.class)
                 .hasMessage(
                         "Unable to merge schema columns={`id` BIGINT,`name` VARCHAR(255),`age` TINYINT,`description` STRING}, primaryKeys=id, partitionKeys=age, options=() "
                                 + "and columns={`id` BIGINT,`name` VARCHAR(255),`age` TINYINT,`description` STRING}, primaryKeys=id, partitionKeys=id, options=() with different partition keys.");
