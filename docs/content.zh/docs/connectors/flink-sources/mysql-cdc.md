@@ -437,7 +437,7 @@ Flink SQL> SELECT * FROM orders;
     <tr>
       <td>row_kind</td>
       <td>STRING NOT NULL</td>
-      <td>这表示着 changelog 的类型。注意: 下游的 SQL 算子可能会因为添加了 'row_kind' 列而导致数据回撤失败。如果源算子选择输出'row_kind'列，则下游的SQL算子可能会因为无法比较'row_kind'列而失败。建议仅在简单的同步作业中使用此元数据列。<br>'+I' 代表着 INSERT 数据，'-D' 代表着 DELETE 数据，'-U' 代表着 UPDATE_BEFORE 数据以及 '+U' 代表着 UPDATE_AFTER 数据。</td>
+      <td>当前记录的 changelog 的类型。注意: 下游的 SQL 算子可能会因为添加了 'row_kind' 列而导致数据回撤失败。如果源算子选择输出 'row_kind' 列，则下游的 SQL 算子可能会因为无法比较 'row_kind' 列而失败。建议仅在简单的同步作业中使用此元数据列。<br>'+I' 代表着 INSERT 数据，'-D' 代表着 DELETE 数据，'-U' 代表着 UPDATE_BEFORE 数据以及 '+U' 代表着 UPDATE_AFTER 数据。</td>
     </tr>
   </tbody>
 </table>
