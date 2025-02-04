@@ -255,6 +255,11 @@ public class BinlogOffset implements Comparable<BinlogOffset>, Serializable {
             return Long.compare(this.getRestartSkipRows(), that.getRestartSkipRows());
         }
 
+        // serverId of BinlogOffset in snapshot phase is 0.
+        if (serverId == 0) {
+            return 0;
+        }
+
         // The skip rows are the same, so compare the timestamp ...
         return Long.compare(this.getTimestampSec(), that.getTimestampSec());
     }
