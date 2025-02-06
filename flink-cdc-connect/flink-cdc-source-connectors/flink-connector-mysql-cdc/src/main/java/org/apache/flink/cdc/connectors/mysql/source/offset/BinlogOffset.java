@@ -251,17 +251,7 @@ public class BinlogOffset implements Comparable<BinlogOffset>, Serializable {
         }
 
         // The completed events are the same, so compare the row number ...
-        if (this.getRestartSkipRows() != that.getRestartSkipRows()) {
-            return Long.compare(this.getRestartSkipRows(), that.getRestartSkipRows());
-        }
-
-        // serverId of BinlogOffset in snapshot phase is 0.
-        if (serverId == 0) {
-            return 0;
-        }
-
-        // The skip rows are the same, so compare the timestamp ...
-        return Long.compare(this.getTimestampSec(), that.getTimestampSec());
+        return Long.compare(this.getRestartSkipRows(), that.getRestartSkipRows());
     }
 
     public boolean isAtOrBefore(BinlogOffset that) {
